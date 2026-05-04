@@ -11,6 +11,12 @@ from groq import Groq
 from datetime import datetime
 
 app = FastAPI()
+
+# --- CAMBIO 1: RUTA DE SALUD PARA RENDER ---
+@app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
+
 # Permitimos CORS para que el frontend pueda conectar con el backend en la nube
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -101,7 +107,7 @@ async def enviar_informe_ia(websocket):
        - Precio Actual: ${data['precio']:,.2f} ({data['cambio']}% hoy)
        - Sentimiento (Fear & Greed): {data['sentiment']}
     
-    TAREA: Explica cómo influyen las compras/ventas top en el RSI y si las medias móviles confirman una entrada o salida. Responde en español de forma técnica y profesional."""
+    Tarea: Explica cómo influyen las compras/ventas top en el RSI y si las medias móviles confirman una entrada o salida. Responde en español de forma técnica y profesional."""
     
     try:
         completion = client.chat.completions.create(
@@ -140,8 +146,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 "color": "red" if es_venta else "emerald"
             })
 
-# --- ARRANQUE ---
-# Esto permite que Docker ejecute la app correctamente en el puerto 8000
+# --- ARRANQUE (CAMBIO 2: PUERTO DINÁMICO PARA RENDER) ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

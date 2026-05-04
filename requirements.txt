@@ -3,4 +3,5 @@ uvicorn
 websockets
 requests
 pandas
+numpy
 groq

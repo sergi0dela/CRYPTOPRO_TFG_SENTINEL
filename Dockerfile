@@ -1,11 +1,22 @@
-# Usamos Nginx, que es un servidor web muy rápido
-FROM nginx:stable-alpine
+# 1. Usamos una versión ligera de Python
+FROM python:3.11-slim
 
-# Copiamos tu index.html a la carpeta de Nginx
-COPY . /usr/share/nginx/html
+# 2. Configuración (Formato moderno corregido)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Exponemos el puerto 80
-EXPOSE 80
+# 3. Directorio de trabajo
+WORKDIR /app
 
-# Arrancamos Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# 4. Instalamos las dependencias
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 5. Copiamos el resto del código
+COPY . .
+
+# 6. Exponemos el puerto
+EXPOSE 8000
+
+# 7. Comando para arrancar (usando python directamente es más seguro)
+CMD ["python", "main.py"]

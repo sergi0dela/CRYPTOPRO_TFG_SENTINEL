@@ -103,7 +103,7 @@
         // CONFIGURACIÓN DE CONEXIÓN DINÁMICA PARA RENDER
         const backendHost = window.location.hostname === 'localhost' 
             ? 'localhost:8000' 
-            : 'crypto-backend.onrender.com'; // RECUERDA: Cambia esto por tu URL final de Render
+            : 'cryptopro-tfg-sentinel.onrender.com'; // RECUERDA: Cambia esto por tu URL final de Render
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const socket = new WebSocket(`${protocol}://${backendHost}/ws/crypto`);

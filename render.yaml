@@ -1,0 +1,23 @@
+services:
+  # El Backend
+  - type: web
+    name: crypto-backend
+    env: docker
+    repo: https://github.com/TU_USUARIO/TU_REPO # Render necesita que esté en GitHub
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: starter # El plan más barato que soporta WebSockets
+    envVars:
+      - key: GROQ_API_KEY
+        value: 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
+      - key: PORT
+        value: 8000
+
+  # El Frontend
+  - type: web
+    name: crypto-frontend
+    env: docker
+    repo: https://github.com/TU_USUARIO/TU_REPO
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    plan: starter

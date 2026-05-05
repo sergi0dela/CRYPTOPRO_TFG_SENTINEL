@@ -116,4 +116,10 @@ if __name__ == "__main__":
     import uvicorn
     # Puerto dinámico para Render
     port = int(os.getenv("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        ws_ping_interval=20,
+        ws_ping_pong_timeout=20
+    )

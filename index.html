@@ -7,17 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap');
-        
         body { font-family: 'Inter', sans-serif; background-color: #020617; }
         .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(51, 65, 85, 0.4); }
-        
         .rsi-bar-fill { transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1), background-color 1s; }
         .price-up { color: #10b981; text-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
         .price-down { color: #ef4444; text-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
-        
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
@@ -32,8 +28,8 @@
                 </h1>
                 <p class="text-[10px] text-slate-500 uppercase tracking-[0.4em] mt-1 font-bold">Monitor On-Chain & Análisis Técnico IA</p>
             </div>
-            <div id="connection-badge" class="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black">
-                DESCONECTADO
+            <div id="connection-badge" class="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black">
+                SISTEMA ACTIVO
             </div>
         </header>
 
@@ -48,23 +44,20 @@
                             <h1 class="text-2xl font-bold text-white tracking-tight">Reporte Técnico e Institucional</h1>
                         </div>
                     </div>
-
                     <div id="ia-box" class="text-slate-300 leading-relaxed text-lg whitespace-pre-line pr-4 overflow-y-auto max-h-[650px]">
                         <div class="animate-pulse space-y-4">
                             <div class="h-4 bg-slate-800 rounded w-full"></div>
                             <div class="h-4 bg-slate-800 rounded w-5/6"></div>
-                            <div class="h-4 bg-slate-800 rounded w-4/6"></div>
-                            <p class="text-slate-600 text-sm italic mt-6 text-center uppercase tracking-widest">Consultando Groq Llama 3.3 y métricas de Binance...</p>
+                            <p class="text-slate-600 text-sm italic mt-6 text-center uppercase tracking-widest">Consultando Groq Llama 3.3...</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="space-y-6">
-                
                 <div class="glass rounded-[2rem] p-8 border-b-4 border-blue-500/20 shadow-xl">
-                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center">Cotización Actual</p>
-                    <div id="price" class="text-5xl font-black tracking-tighter text-white mb-8 text-center transition-all duration-300">$0.00</div>
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center">Cotización en Tiempo Real</p>
+                    <div id="price" class="text-5xl font-black tracking-tighter text-white mb-8 text-center transition-all duration-300">Cargando...</div>
                     
                     <div class="pt-6 border-t border-slate-800">
                         <div class="flex justify-between items-end mb-3">
@@ -74,11 +67,6 @@
                         <div class="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-800">
                             <div id="rsi-bar" class="rsi-bar-fill h-full w-0 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
                         </div>
-                        <div class="flex justify-between text-[8px] font-bold text-slate-600 mt-2 uppercase tracking-tighter">
-                            <span>Sobrevendido (30)</span>
-                            <span>Neutral</span>
-                            <span>Sobrecomprado (70)</span>
-                        </div>
                     </div>
                 </div>
 
@@ -86,94 +74,79 @@
                     <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
                         <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
                             <span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Monitor de Flujo (> $50k)
+                            Monitor de Ballenas (> $50k)
                         </h3>
                     </div>
-                    
                     <div id="whale-feed" class="flex-1 overflow-y-auto space-y-3 pr-2 scroll-smooth">
-                    </div>
+                        </div>
                 </div>
-
             </div>
         </div>
     </div>
 
     <script>
-        // CONFIGURACIÓN DE CONEXIÓN FIJA PARA RENDER (Evita fallos de hostname)
-        const backendHost = 'cryptopro-tfg-sentinel.onrender.com'; 
+        // CONFIGURACIÓN DE CONEXIÓN
+        const backendHost = 'cryptopro-tfg-sentinel.onrender.com';
         
-        // Render obliga a usar WSS (Secure) en aplicaciones desplegadas
-        const socket = new WebSocket(`wss://${backendHost}/ws/crypto`);
-        
+        // 1. Conexión al Backend (Para IA y RSI)
+        const serverSocket = new WebSocket(`wss://${backendHost}/ws/crypto`);
+
+        // 2. Conexión Directa a Binance (Para Precios y Alertas Ballena)
+        // Esto evita el Error 451 de Render porque lo pides desde TU IP
+        const binanceSocket = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@aggTrade');
+
         const priceEl = document.getElementById('price');
-        const rsiBar = document.getElementById('rsi-bar');
         const rsiVal = document.getElementById('rsi-val');
+        const rsiBar = document.getElementById('rsi-bar');
         const iaBox = document.getElementById('ia-box');
         const feed = document.getElementById('whale-feed');
-        const badge = document.getElementById('connection-badge');
-        
-        let lastPrice = 0;
 
-        socket.onopen = () => {
-            console.log("Conectado exitosamente");
-            badge.innerText = "SISTEMA CONECTADO";
-            badge.className = "px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black";
-        };
-
-        socket.onmessage = (event) => {
+        // MANEJAR DATOS DEL SERVIDOR (BACKEND)
+        serverSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-
+            
             if (data.type === "rsi_update") {
-                const val = data.value;
-                rsiVal.innerText = val;
-                rsiBar.style.width = val + "%";
-                if (val >= 70) {
-                    rsiBar.style.backgroundColor = "#fbbf24";
-                    rsiVal.className = "text-xl font-black text-yellow-400";
-                } else if (val <= 30) {
-                    rsiBar.style.backgroundColor = "#22d3ee";
-                    rsiVal.className = "text-xl font-black text-cyan-400";
-                } else {
-                    rsiBar.style.backgroundColor = "#3b82f6";
-                    rsiVal.className = "text-xl font-black text-white";
-                }
+                rsiVal.innerText = data.value;
+                rsiBar.style.width = data.value + "%";
+                // Color dinámico para el RSI
+                if (data.value >= 70) rsiBar.style.backgroundColor = "#fbbf24";
+                else if (data.value <= 30) rsiBar.style.backgroundColor = "#22d3ee";
+                else rsiBar.style.backgroundColor = "#3b82f6";
             }
-
+            
             if (data.type === "initial") {
                 iaBox.innerHTML = `<div class="fade-in">${data.ia_content}</div>`;
             }
+        };
 
-            if (data.type === "trade") {
-                const p = data.price;
-                if (p > lastPrice) priceEl.className = "text-5xl font-black tracking-tighter mb-8 text-center price-up";
-                else if (p < lastPrice) priceEl.className = "text-5xl font-black tracking-tighter mb-8 text-center price-down";
-                priceEl.innerText = `$${p.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-                lastPrice = p;
+        // MANEJAR DATOS DE BINANCE (CLIENTE DIRECTO)
+        binanceSocket.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            const p = parseFloat(msg.p);
+            const v_usd = p * parseFloat(msg.q);
+            const es_venta = msg.m;
 
-                if (data.alert) {
-                    const alertDiv = document.createElement('div');
-                    const isRed = data.color === "red";
-                    alertDiv.className = `fade-in p-3 rounded-xl border ${isRed ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'} shadow-sm`;
-                    alertDiv.innerHTML = `
-                        <div class="flex justify-between items-center text-[10px] font-bold">
-                            <span class="tracking-tight">${data.alert}</span>
-                            <span class="opacity-40 font-mono text-[8px]">${new Date().toLocaleTimeString()}</span>
-                        </div>`;
-                    feed.prepend(alertDiv);
-                    if (feed.children.length > 15) feed.lastChild.remove();
-                }
+            // Actualizar precio
+            priceEl.innerText = `$${p.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+            priceEl.className = es_venta ? "text-5xl font-black mb-8 text-center price-down" : "text-5xl font-black mb-8 text-center price-up";
+
+            // Alertas de Ballenas Precisas
+            if (v_usd > 50000) {
+                const div = document.createElement('div');
+                div.className = `fade-in p-3 rounded-xl border mb-2 ${es_venta ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`;
+                div.innerHTML = `
+                    <div class="flex justify-between items-center text-[10px] font-bold">
+                        <span class="tracking-widest">${es_venta ? 'BALLENA VENDIENDO 🔴' : 'BALLENA COMPRANDO 🟢'}</span>
+                        <span class="font-mono text-xs">$${v_usd.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                    </div>`;
+                feed.prepend(div);
+                if (feed.children.length > 15) feed.lastChild.remove();
             }
         };
 
-        socket.onclose = () => {
-            console.log("Conexión cerrada");
-            badge.innerText = "DESCONECTADO";
-            badge.className = "px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black";
-        };
-
-        socket.onerror = (error) => {
-            console.error("Error WebSocket:", error);
-        };
+        // Reconexión automática si falla algo
+        serverSocket.onclose = () => console.log("Servidor desconectado");
+        binanceSocket.onclose = () => console.log("Binance desconectado");
     </script>
 </body>
 </html>

@@ -20,7 +20,7 @@ async def health_check():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,  # Cambiado a True para mayor compatibilidad
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,7 +40,8 @@ def get_market_sentiment():
     try:
         r = requests.get("https://api.alternative.me/fng/", timeout=5).json()
         return f"{r['data'][0]['value']}/100 ({r['data'][0]['value_classification']})"
-    except: return "50/100 (Neutral)"
+    except:
+        return "50/100 (Neutral)"
 
 def get_complete_market_data():
     try:
@@ -58,9 +59,13 @@ def get_complete_market_data():
         top_ventas = "".join([f"- VENTA: ${r['vol_usd']:,.2f}\n" for i, r in df[~df['is_up']].nlargest(5, 'vol_usd').iterrows()])
         ticker = requests.get("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT").json()
         return {
-            "rsi": round(rsi_val, 2), "sma_20": round(sma_20, 2), "sma_50": round(sma_50, 2),
-            "top_compras": top_compras, "top_ventas": top_ventas,
-            "precio": float(ticker['lastPrice']), "cambio": ticker['priceChangePercent'],
+            "rsi": round(rsi_val, 2),
+            "sma_20": round(sma_20, 2),
+            "sma_50": round(sma_50, 2),
+            "top_compras": top_compras,
+            "top_ventas": top_ventas,
+            "precio": float(ticker['lastPrice']),
+            "cambio": ticker['priceChangePercent'],
             "sentiment": get_market_sentiment()
         }
     except Exception as e:
@@ -70,11 +75,12 @@ def get_complete_market_data():
 async def enviar_informe_ia(websocket):
     try:
         data = get_complete_market_data()
-        if not data: return
+        if not data:
+            return
         await websocket.send_json({"type": "rsi_update", "value": data['rsi']})
         prompt = f"Analiza BTC: RSI {data['rsi']}, SMA20 ${data['sma_20']}, SMA50 ${data['sma_50']}. Responde técnico en español."
         chat = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}]
         )
         await websocket.send_json({"type": "initial", "ia_content": chat.choices[0].message.content})
@@ -84,10 +90,7 @@ async def enviar_informe_ia(websocket):
 @app.websocket("/ws/crypto")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("DEBUG: Cliente conectado al WebSocket") # ESTO DEBE SALIR EN EL LOG
-
-    # 3. IA DESACTIVADA TEMPORALMENTE PARA PRUEBAS
-    # asyncio.create_task(enviar_informe_ia(websocket))
+    print("DEBUG: Cliente conectado al WebSocket")
 
     url = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade"
     try:
@@ -99,7 +102,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 p = float(msg['p'])
                 v_usd = p * float(msg['q'])
                 es_venta = msg['m']
-                
+
                 await websocket.send_json({
                     "type": "trade",
                     "price": p,
@@ -114,12 +117,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    # Puerto dinámico para Render
     port = int(os.getenv("PORT", 10000))
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=port,
-        ws_ping_interval=20,
-        ws_ping_pong_timeout=20
-    )
+    uvicorn.run(app, host="0.0.0.0", port=port)

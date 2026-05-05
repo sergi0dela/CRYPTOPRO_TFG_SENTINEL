@@ -19,41 +19,40 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-# Función para obtener el precio sin usar WebSockets (evita el Error 451)
-def get_binance_price():
+def get_market_price():
+    # Intentamos Kraken (más amigable con Render)
     try:
-        # Usamos la API REST, que es más difícil que bloqueen por región
-        url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        response = requests.get(url, timeout=2)
+        url = "https://api.kraken.com/0/public/Ticker?pair=XXBTZUSD"
+        response = requests.get(url, timeout=5)
         data = response.json()
-        return float(data['price'])
-    except Exception as e:
-        print(f"Error consultando precio: {e}")
-        return None
+        return float(data['result']['XXBTZUSD']['c'][0])
+    except:
+        # Si falla, backup con Coinbase
+        try:
+            url = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
+            res = requests.get(url, timeout=5).json()
+            return float(res['data']['amount'])
+        except:
+            return None
 
 @app.websocket("/ws/crypto")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("DEBUG: Cliente conectado. Usando modo HTTP Polling para evitar Error 451.")
+    print("DEBUG: Conexión establecida con éxito.")
     
     try:
         while True:
-            precio = get_binance_price()
-            
+            precio = get_market_price()
             if precio:
                 await websocket.send_json({
                     "type": "trade",
                     "price": precio,
-                    "alert": None, # Puedes añadir alertas aquí luego
+                    "alert": None,
                     "color": "emerald"
                 })
-            
-            # Esperamos 2 segundos entre actualización y actualización
-            # Esto evita que Binance nos banee por exceso de peticiones
-            await asyncio.sleep(2)
-            
+            await asyncio.sleep(2) # Actualización cada 2 segundos
     except Exception as e:
-        print(f"DEBUG: Conexión cerrada con el cliente: {e}")
+        print(f"DEBUG: Conexión terminada: {e}")
     finally:
         await websocket.close()
 

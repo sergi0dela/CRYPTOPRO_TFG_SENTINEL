@@ -102,8 +102,8 @@
         // CONFIGURACIÓN DE CONEXIÓN FIJA PARA RENDER (Evita fallos de hostname)
         const backendHost = 'cryptopro-tfg-sentinel.onrender.com'; 
         
-        // Render obliga a usar WS (sin secure) para conexiones WebSocket
-        const socket = new WebSocket(`ws://${backendHost}/ws/crypto`);
+        // Render obliga a usar WSS (Secure) en aplicaciones desplegadas
+        const socket = new WebSocket(`wss://${backendHost}/ws/crypto`);
         
         const priceEl = document.getElementById('price');
         const rsiBar = document.getElementById('rsi-bar');

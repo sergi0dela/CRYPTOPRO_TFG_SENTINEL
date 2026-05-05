@@ -11,20 +11,21 @@ from groq import Groq
 
 app = FastAPI()
 
-# Ruta de salud para Render
+# 1. RUTA DE SALUD
 @app.get("/healthz")
 async def health_check():
     return {"status": "ok"}
 
-# Configuración de CORS
+# 2. CONFIGURACIÓN DE CORS REFORZADA
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,  # Cambiado a True para mayor compatibilidad
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configuración de API Key
+# Configuración de Groq
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -49,15 +50,12 @@ def get_complete_market_data():
         df['close'] = df['close'].astype(float)
         df['open'] = df['open'].astype(float)
         df['vol_usd'] = df['vol'].astype(float) * df['close']
-
         rsi_val = calculate_rsi(df['close']).iloc[-1]
         sma_20 = df['close'].rolling(window=20).mean().iloc[-1]
         sma_50 = df['close'].rolling(window=50).mean().iloc[-1]
-
         df['is_up'] = df['close'] > df['open']
         top_compras = "".join([f"- COMPRA: ${r['vol_usd']:,.2f}\n" for i, r in df[df['is_up']].nlargest(5, 'vol_usd').iterrows()])
         top_ventas = "".join([f"- VENTA: ${r['vol_usd']:,.2f}\n" for i, r in df[~df['is_up']].nlargest(5, 'vol_usd').iterrows()])
-
         ticker = requests.get("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT").json()
         return {
             "rsi": round(rsi_val, 2), "sma_20": round(sma_20, 2), "sma_50": round(sma_50, 2),
@@ -70,37 +68,31 @@ def get_complete_market_data():
         return None
 
 async def enviar_informe_ia(websocket):
-    """Función que corre en segundo plano para no bloquear el socket"""
     try:
         data = get_complete_market_data()
         if not data: return
-        
-        # Enviamos el RSI primero
         await websocket.send_json({"type": "rsi_update", "value": data['rsi']})
-        
-        prompt = f"Analiza BTC: RSI {data['rsi']}, SMA20 ${data['sma_20']}, SMA50 ${data['sma_50']}. Compras: {data['top_compras']}. Ventas: {data['top_ventas']}. Precio: ${data['precio']}. Responde técnico y profesional en español."
-        
+        prompt = f"Analiza BTC: RSI {data['rsi']}, SMA20 ${data['sma_20']}, SMA50 ${data['sma_50']}. Responde técnico en español."
         chat = client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=[{"role": "user", "content": prompt}]
         )
         await websocket.send_json({"type": "initial", "ia_content": chat.choices[0].message.content})
     except Exception as e:
-        print(f"DEBUG: Error en IA (pero el socket sigue vivo): {e}")
+        print(f"DEBUG: Error en IA: {e}")
 
 @app.websocket("/ws/crypto")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("DEBUG: Cliente conectado al WebSocket")
+    print("DEBUG: Cliente conectado al WebSocket") # ESTO DEBE SALIR EN EL LOG
 
-    # LANZAMOS IA EN SEGUNDO PLANO (Crucial para que no se cierre el socket si falla)
-    asyncio.create_task(enviar_informe_ia(websocket))
+    # 3. IA DESACTIVADA TEMPORALMENTE PARA PRUEBAS
+    # asyncio.create_task(enviar_informe_ia(websocket))
 
-    # FLUJO BINANCE
     url = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade"
     try:
         async with websockets.connect(url) as binance_ws:
-            print("DEBUG: Conexión con Binance establecida")
+            print("DEBUG: Conexión con Binance OK")
             while True:
                 data = await binance_ws.recv()
                 msg = json.loads(data)
@@ -108,21 +100,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 v_usd = p * float(msg['q'])
                 es_venta = msg['m']
                 
-                alerta = f"{'VENTA 🔴' if es_venta else 'COMPRA 🟢'}: ${v_usd:,.2f}" if v_usd > 50000 else None
-                
                 await websocket.send_json({
                     "type": "trade",
                     "price": p,
-                    "alert": alerta,
+                    "alert": f"BALLENA: ${v_usd:,.2f}" if v_usd > 50000 else None,
                     "color": "red" if es_venta else "emerald"
                 })
     except Exception as e:
         print(f"DEBUG: Error en bucle principal: {e}")
     finally:
-        print("DEBUG: Cerrando WebSocket del cliente")
+        print("DEBUG: Cerrando WebSocket")
         await websocket.close()
 
 if __name__ == "__main__":
     import uvicorn
+    # Puerto dinámico para Render
     port = int(os.getenv("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
